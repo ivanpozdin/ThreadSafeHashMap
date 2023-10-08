@@ -44,7 +44,7 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
     private fun getIndexOf(key: K): Int {
         return Math.floorMod(key.hashCode(), capacity)
     }
-
+    @Synchronized
     private fun resize() {
         val oldMap = map
         capacity *= RESIZE_FACTOR
@@ -81,6 +81,7 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
     override val size: Int
         get() = elementsNumber
 
+    @Synchronized
     override fun clear() {
         map = map.map { mutableListOf() }
         elementsNumber = 0
@@ -91,6 +92,7 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
         return elementsNumber == 0
     }
 
+    @Synchronized
     override fun remove(key: K): V? {
         val entriesWithEqualHash = map[getIndexOf(key)]
         val index = entriesWithEqualHash.indexOfFirst { keyValue -> keyValue.key == key }
@@ -102,12 +104,14 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
         return entry.value
     }
 
+    @Synchronized
     override fun putAll(from: Map<out K, V>) {
         from.entries.forEach { entry ->
             this[entry.key] = entry.value
         }
     }
 
+    @Synchronized
     override fun put(key: K, value: V): V? {
         val keyValue = findKeyValue(key)
         if (keyValue == null) {

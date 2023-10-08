@@ -1,3 +1,5 @@
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -7,6 +9,37 @@ fun getRandomString(length: Int): String {
 }
 
 class HashMapTest {
+    @Test
+    fun `Try to detect races`() {
+        val map = HashMap<String, String>(50)
+        val array1 = mutableListOf<String>()
+        val array2 = mutableListOf<String>()
+        for (len in 1..100) {
+            array1.add(getRandomString(len))
+            array2.add(getRandomString(len))
+        }
+        println(array1)
+        println()
+        println(array2)
+        runBlocking {
+            launch {
+                for (i in 0..99) {
+                    map[i.toString()] = array1[i]
+                }
+            }
+            launch {
+                for (i in 0..99) {
+                    map[i.toString()] = array2[i]
+                }
+            }
+        }
+        map.printMap()
+        val expected = array2.toMutableSet()
+        val actual = map.values
+        assertEquals(expected, actual)
+
+    }
+
     @Test
     fun `Get and Set`() {
         val map = HashMap<String, String>()
@@ -96,11 +129,12 @@ class HashMapTest {
             val value = getRandomString(100)
             map[key] = value
         }
-        keys.forEach{key ->
+        keys.forEach { key ->
             map.remove(key)
         }
         assertEquals(true, map.isEmpty())
     }
+
     @Test
     fun `isEmpty when map is not empty`() {
         val map = HashMap<String, String>()
@@ -198,6 +232,7 @@ class HashMapTest {
         }
         assertEquals(true, map.containsKey("key"))
     }
+
     @Test
     fun `doesn't contain key`() {
         val map = HashMap<String, String>()
