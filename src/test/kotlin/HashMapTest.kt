@@ -1,3 +1,4 @@
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -19,7 +20,6 @@ class HashMapTest {
             array2.add(getRandomString(len))
         }
         println(array1)
-        println()
         println(array2)
         runBlocking {
             launch {
@@ -33,9 +33,9 @@ class HashMapTest {
                 }
             }
         }
-        map.printMap()
         val expected = array2.toMutableSet()
         val actual = map.values
+        println(actual)
         assertEquals(expected, actual)
 
     }
