@@ -2,7 +2,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
-class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
+class ConcurrentHashTable<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
     companion object Factory {
         const val RESIZE_FACTOR = 3
     }

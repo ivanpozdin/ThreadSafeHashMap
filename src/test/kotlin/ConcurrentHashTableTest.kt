@@ -11,7 +11,7 @@ fun getRandomString(length: Int): String {
     return (1..length).map { chars.random() }.joinToString("")
 }
 
-class HashMapTest {
+class ConcurrentHashTableTest {
     @Test
     fun `Writing time compared to std ConcurrentHashMap`() {
         val elementsNumberToAdd = 100_000

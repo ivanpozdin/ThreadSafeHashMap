@@ -4,7 +4,7 @@ fun getRandomString(length: Int): String {
 }
 
 fun main(args: Array<String>) {
-    val map = HashMap<String, String>()
+    val map = ConcurrentHashTable<String, String>()
     repeat(1000) {
         val key = getRandomString(15)
         val value = getRandomString(100)
