@@ -1,13 +1,13 @@
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 
 class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
     companion object Factory {
         const val RESIZE_FACTOR = 3
-        const val MAX_LOAD_FACTOR = 0.75
     }
 
-    inner class KeyValue<K, V>(key: K, value: V) : MutableMap.MutableEntry<K, V> {
+    class KeyValue<K, V>(key: K, value: V) : MutableMap.MutableEntry<K, V> {
         override var key: K private set
         override var value: V
 
@@ -23,14 +23,15 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
         }
     }
 
-    private var elementsNumber: AtomicInteger = AtomicInteger(0)
+    private val lock = ReentrantReadWriteLock()
+    private var elementsNumber: Int = 0
     private var capacity: Int = initialSize
-    private var map: MutableList<AtomicReference<List<KeyValue<K, V>>>>
-    private val needResize: Boolean get() = elementsNumber.get() >= MAX_LOAD_FACTOR * capacity
+    private var map: List<MutableList<KeyValue<K, V>>>
+    private val needResize: Boolean get() = elementsNumber == capacity
     private val keysPrivate = mutableSetOf<K>()
 
     init {
-        map = MutableList(capacity) { AtomicReference(listOf()) }
+        map = List(capacity) { mutableListOf() }
     }
 
     override operator fun get(key: K): V? {
@@ -41,31 +42,30 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
         put(key, value)
     }
 
-    private fun findKeyValue(key: K): KeyValue<K, V>? {
-        val elementsWithEqualHash = map[getIndexOf(key)].get()
-        return elementsWithEqualHash.find { keyValue -> keyValue.key == key }
+    private fun findKeyValue(key: K): KeyValue<K, V>? = lock.read {
+        return map[getIndexOf(key)].find { keyValue -> keyValue.key == key }
     }
 
-    private fun getIndexOf(key: K): Int {
+    private fun getIndexOf(key: K): Int =lock.read {
         return Math.floorMod(key.hashCode(), capacity)
     }
 
-    @Synchronized
-    private fun resize() {
+    private fun resize() = lock.write {
         val oldMap = map
         capacity *= RESIZE_FACTOR
-        map = MutableList(capacity) { AtomicReference(listOf()) }
-        elementsNumber.set(0)
+        map = List(capacity) { mutableListOf() }
+        elementsNumber = 0
         oldMap.forEach { list ->
-            for (keyValue in list.get()) {
+            for (keyValue in list) {
                 this[keyValue.key] = keyValue.value
             }
         }
     }
 
-    fun printMap() {
+
+    fun printMap() = lock.read {
         for (list in map) {
-            for (keyValue in list.get()) {
+            for (keyValue in list) {
                 print("${keyValue.key} ${keyValue.value} -->  ")
             }
             println()
@@ -73,88 +73,68 @@ class HashMap<K, V>(initialSize: Int = 100) : MutableMap<K, V> {
     }
 
     override val entries: MutableSet<MutableMap.MutableEntry<K, V>>
-        get() = keysPrivate.map { key ->
-            findKeyValue(key)!!
-        }.toMutableSet()
+        get() = lock.read {
+            keysPrivate.map { key ->
+                findKeyValue(key)!!
+            }.toMutableSet()
+        }
 
     override val keys
-        get() = keysPrivate.toMutableSet()
+        get() = lock.read {keysPrivate.toMutableSet()}
     override val values: MutableCollection<V>
-        get() = keysPrivate.map { key ->
+        get() = lock.read {keysPrivate.map { key ->
             this[key]!!
-        }.toMutableSet()
+        }.toMutableSet()}
 
     override val size: Int
-        get() = elementsNumber.get()
+        get() = lock.read {elementsNumber}
 
-    @Synchronized
-    override fun clear() {
-        map = MutableList(capacity) { AtomicReference(listOf()) }
-        elementsNumber.set(0)
+    override fun clear() = lock.write {
+        map = map.map { mutableListOf() }
+        elementsNumber = 0
     }
 
-    override fun isEmpty(): Boolean {
-        print(elementsNumber)
-        return elementsNumber.get() == 0
+    override fun isEmpty(): Boolean  = lock.read {
+        return elementsNumber == 0
     }
 
-    override fun remove(key: K): V? {
-        while (true) {
-            val entriesWithEqualHash = map[getIndexOf(key)].get()
-            val entriesWithEqualHashMutable = entriesWithEqualHash.toMutableList()
-            val index = entriesWithEqualHashMutable.indexOfFirst { keyValue -> keyValue.key == key }
-            val oldValue = if (index == -1) {
-                null
-            } else {
-                val entry = entriesWithEqualHashMutable[index]
-                entriesWithEqualHashMutable.removeAt(index)
-                entry.value
-            }
-            val updatedEntriesWithEqualHash = entriesWithEqualHashMutable.toList()
-            if (map[getIndexOf(key)].compareAndSet(entriesWithEqualHash, updatedEntriesWithEqualHash)) {
-                if (keysPrivate.remove(key)) {
-                    elementsNumber.decrementAndGet()
-                }
-                return oldValue
-            }
-
-        }
+    override fun remove(key: K): V?  = lock.write {
+        val entriesWithEqualHash = map[getIndexOf(key)]
+        val index = entriesWithEqualHash.indexOfFirst { keyValue -> keyValue.key == key }
+        if (index == -1) return null
+        val entry = entriesWithEqualHash[index]
+        entriesWithEqualHash.removeAt(index)
+        elementsNumber--
+        keysPrivate.remove(key)
+        return entry.value
     }
 
-    override fun putAll(from: Map<out K, V>) {
+    override fun putAll(from: Map<out K, V>)  = lock.write {
         from.entries.forEach { entry ->
             this[entry.key] = entry.value
         }
     }
 
-    override fun put(key: K, value: V): V? {
-        while (true) {
-            val entriesWithEqualHash = map[getIndexOf(key)].get()
-            val entriesWithEqualHashMutable = entriesWithEqualHash.toMutableList()
-            val keyValue = entriesWithEqualHashMutable.find { keyValue -> keyValue.key == key }
-            val oldValue = if (keyValue == null) {
-                entriesWithEqualHashMutable.add(KeyValue(key, value))
-                elementsNumber.incrementAndGet()
-                null
-            } else {
-                val oldValue = keyValue.value
-                keyValue.value = value
-                oldValue
-            }
-            val updatedEntriesWithEqualHash = entriesWithEqualHashMutable.toList()
-            if (map[getIndexOf(key)].compareAndSet(entriesWithEqualHash, updatedEntriesWithEqualHash)) {
-                keysPrivate.add(key)
-                if (needResize) resize()
-                return oldValue
-            }
+    override fun put(key: K, value: V): V?  = lock.write {
+        val keyValue = findKeyValue(key)
+        if (keyValue == null) {
+            val index = getIndexOf(key)
+            map[index].add(KeyValue(key, value))
+            elementsNumber++
+            keysPrivate.add(key)
+            if (needResize) resize()
+            return null
         }
+        val oldValue = keyValue.value
+        keyValue.value = value
+        return oldValue
     }
 
-    override fun containsValue(value: V): Boolean {
+    override fun containsValue(value: V): Boolean = lock.read {
         return this.values.contains(value)
     }
 
-    override fun containsKey(key: K): Boolean {
+    override fun containsKey(key: K): Boolean = lock.read {
         return findKeyValue(key) != null
     }
 
