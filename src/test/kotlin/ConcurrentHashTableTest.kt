@@ -22,7 +22,7 @@ class ConcurrentHashTableTest {
 
             val timeStdMapWrite = measureTimeMillis {
                 val tasks = List(coroutineCount) {
-                    async() {
+                    async {
                         for (i in 1..elementsNumberToAdd) {
                             stdMap[i] = getRandomString(2)
                         }
@@ -33,7 +33,7 @@ class ConcurrentHashTableTest {
             println("STD ConcurrentHashMap write time = $timeStdMapWrite ms")
             val timeMyMapWrite = measureTimeMillis {
                 val tasks = List(coroutineCount) {
-                    async() {
+                    async {
                         for (i in 1..elementsNumberToAdd) {
                             myMap[i] = getRandomString(2)
                         }
@@ -62,7 +62,7 @@ class ConcurrentHashTableTest {
 
             val timeStdMapRead = measureTimeMillis {
                 val tasks = List(coroutineCount) {
-                    async() {
+                    async {
                         for (i in 1..elementsNumberToAdd) {
                             stdMap[i]
                         }
@@ -73,7 +73,7 @@ class ConcurrentHashTableTest {
             println("STD ConcurrentHashMap read time = $timeStdMapRead ms")
             val timeMyMapRead = measureTimeMillis {
                 val tasks = List(coroutineCount) {
-                    async() {
+                    async {
                         for (i in 1..elementsNumberToAdd) {
                             myMap[i]
                         }
@@ -86,35 +86,6 @@ class ConcurrentHashTableTest {
         }
     }
 
-    @Test
-    fun `Try to detect races`() {
-        val map = HashMap<String, String>(50)
-        val array1 = mutableListOf<String>()
-        val array2 = mutableListOf<String>()
-        for (len in 1..100) {
-            array1.add(getRandomString(len))
-            array2.add(getRandomString(len))
-        }
-        println(array1)
-        println()
-        println(array2)
-        runBlocking {
-            launch {
-                for (i in 0..99) {
-                    map[i.toString()] = array1[i]
-                }
-            }
-            launch {
-                for (i in 0..99) {
-                    map[i.toString()] = array2[i]
-                }
-            }
-        }
-        val expected = array2.toMutableSet()
-        val actual = map.values
-        assertEquals(expected, actual)
-
-    }
 
     @Test
     fun `Get and Set`() {
@@ -164,7 +135,7 @@ class ConcurrentHashTableTest {
             map[key] = value
             stdMap[key] = value
         }
-        assertEquals(stdMap.values.toMutableSet(), map.values)
+        assertEquals(stdMap.values.toMutableSet(), map.values.toMutableSet())
     }
 
     @Test
